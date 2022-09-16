@@ -3,16 +3,13 @@ package com.example.myclock;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.text.SimpleDateFormat;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.Random;
 import java.util.TimeZone;
-
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresApi;
 import androidx.appcompat.app.AppCompatActivity;
+
+import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
@@ -20,37 +17,36 @@ import android.graphics.Color;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.StrictMode;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.widget.TextClock;
 import android.widget.TextView;
 import android.widget.Toast;
-
 import org.apache.commons.net.ntp.NTPUDPClient;
 import org.apache.commons.net.ntp.TimeInfo;
 
 public class MainActivity extends AppCompatActivity {
 
-    private NTPUDPClient client = null;
-    private int port = 123;
-    private InetAddress ntp_host = null;
-    private TimeInfo time;
+    NTPUDPClient client = null;
+    int port = 123;
+    InetAddress ntp_host = null;
+    TimeInfo time;
 
-    private StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
-    private TextView clock_source = null;
-    private TextView clock_text = null;
+    private final StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
+    TextView clock_source = null;
+    TextView clock_text = null;
 
     private long app_time;
     private long ntp_time;
+    private final long delay = 30000;
     private long current_time = 0;
     private long last_time = 0;
     private long diff = 0;
 
+    @SuppressLint("SimpleDateFormat")
     public SimpleDateFormat date_format = new SimpleDateFormat("HH:mm:ss");
 
     @Override
@@ -59,6 +55,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         StrictMode.setThreadPolicy(policy);
         date_format.setTimeZone(TimeZone.getTimeZone("Europe/Stockholm"));
+        current_time = app_time = Calendar.getInstance().getTimeInMillis();
 
         clock_source = findViewById(R.id.source);
         clock_text = findViewById(R.id.time_text);
@@ -66,27 +63,26 @@ public class MainActivity extends AppCompatActivity {
         startClock(clock_source, clock_text);
 
         // Whoopsidoo change background color on click (Only needed one button?? amazing)
-        findViewById(R.id.button).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                Random rand = new Random();
-                // Creates random value between 0-255 and sets that r,g,b value in bg
-                int r = rand.nextInt((255) + 1);
-                int g = rand.nextInt((255) + 1);
-                int b = rand.nextInt((255) + 1);
-                View bg_layout = findViewById(R.id.layout);
-                bg_layout.setBackgroundColor(Color.rgb(r, g, b));
-            }
+        findViewById(R.id.button).setOnClickListener(view -> {
+            Random rand = new Random();
+            // Creates random value between 0-255 and sets that r,g,b value in bg
+            int r = rand.nextInt((255) + 1);
+            int g = rand.nextInt((255) + 1);
+            int b = rand.nextInt((255) + 1);
+            View bg_layout = findViewById(R.id.layout);
+            bg_layout.setBackgroundColor(Color.rgb(r, g, b));
         });
     }
 
     public void startClock(TextView source, TextView clock) {
 
         Thread clock_thread = new Thread() {
+            @SuppressLint("SetTextI18n")
             @Override
             public void run() {
                 while (true) {
                     try {
+
                         if (checkNetwork()) {
                             source.setText("NTP Time");
                             app_time = Calendar.getInstance().getTimeInMillis();
@@ -98,6 +94,7 @@ public class MainActivity extends AppCompatActivity {
                             clock.setText(date_format.format(app_time));
                         }
                         Thread.sleep(1000);
+
                     } catch (Exception e) {
                         e.printStackTrace();
                         System.out.println("Error with Try set TIME");
@@ -109,7 +106,6 @@ public class MainActivity extends AppCompatActivity {
         Thread get_clock_thread = new Thread() {
             @Override
             public void run() {
-                long delay = 30000;
                 while(true) {
                     if(checkNetwork()) {
                         if (current_time - last_time > delay) {
@@ -130,7 +126,7 @@ public class MainActivity extends AppCompatActivity {
     public long getNtpTime() {
 
         client = new NTPUDPClient();
-        long return_time = 0;
+        long return_time;
 
         try {
             ntp_host = InetAddress.getByName("pool.ntp.org");
@@ -182,10 +178,10 @@ public class MainActivity extends AppCompatActivity {
         ConnectivityManager con_manager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo[] net_info = con_manager.getAllNetworkInfo();
 
-        for (int i = 0; i < net_info.length; i++) {
-            if ((net_info[i].getTypeName().equalsIgnoreCase("WIFI")) && (net_info[i].isConnected())) {
+        for (NetworkInfo networkInfo : net_info) {
+            if ((networkInfo.getTypeName().equalsIgnoreCase("WIFI")) && (networkInfo.isConnected())) {
                 CONNECTION = true;
-            } else if ((net_info[i].getTypeName().equalsIgnoreCase("MOBILE")) && (net_info[i].isConnected())) {
+            } else if ((networkInfo.getTypeName().equalsIgnoreCase("MOBILE")) && (networkInfo.isConnected())) {
                 CONNECTION = true;
             }
         }
