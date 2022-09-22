@@ -1,21 +1,12 @@
 package com.example.myclock;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.Random;
-import java.util.TimeZone;
+
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-
-import android.annotation.SuppressLint;
 import android.content.ActivityNotFoundException;
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.StrictMode;
@@ -25,44 +16,27 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
-import org.apache.commons.net.ntp.NTPUDPClient;
-import org.apache.commons.net.ntp.TimeInfo;
 
 public class MainActivity extends AppCompatActivity {
 
-    NTPUDPClient client = null;
-    int port = 123;
-    InetAddress ntp_host = null;
-    TimeInfo time;
-
-    private final StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
-    TextView clock_source = null;
-    TextView clock_text = null;
-
-    private long app_time;
-    private long ntp_time;
-    private final long delay = 30000;
-    private long current_time = 0;
-    private long last_time = 0;
-    private long diff = 0;
-
-    @SuppressLint("SimpleDateFormat")
-    public SimpleDateFormat date_format = new SimpleDateFormat("HH:mm:ss");
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Generall setup
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        StrictMode.ThreadPolicy policy = new StrictMode.ThreadPolicy.Builder().permitAll().build();
         StrictMode.setThreadPolicy(policy);
-        date_format.setTimeZone(TimeZone.getTimeZone("Europe/Stockholm"));
-        current_time = app_time = Calendar.getInstance().getTimeInMillis();
+        TextView clock_source = findViewById(R.id.source);
+        TextView clock_text = findViewById(R.id.time_text);
 
-        clock_source = findViewById(R.id.source);
-        clock_text = findViewById(R.id.time_text);
+        try {
+            // Trying to start constructor with thread
+            new Ntp(clock_source, clock_text);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
 
-        startClock(clock_source, clock_text);
-
-        // Whoopsidoo change background color on click (Only needed one button?? amazing)
+        // Click listener for button
         findViewById(R.id.button).setOnClickListener(view -> {
             Random rand = new Random();
             // Creates random value between 0-255 and sets that r,g,b value in bg
@@ -74,83 +48,19 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    public void startClock(TextView source, TextView clock) {
-
-        Thread clock_thread = new Thread() {
-            @SuppressLint("SetTextI18n")
-            @Override
-            public void run() {
-                while (true) {
-                    try {
-
-                        if (checkNetwork()) {
-                            source.setText("NTP Time");
-                            app_time = Calendar.getInstance().getTimeInMillis();
-                            current_time = app_time + diff;
-                            clock.setText(date_format.format(current_time));
-                        } else {
-                            source.setText("APP Time");
-                            app_time = Calendar.getInstance().getTimeInMillis();
-                            clock.setText(date_format.format(app_time));
-                        }
-                        Thread.sleep(1000);
-
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        System.out.println("Error with Try set TIME");
-                    }
-                }
-            }
-        };
-
-        Thread get_clock_thread = new Thread() {
-            @Override
-            public void run() {
-                while(true) {
-                    if(checkNetwork()) {
-                        if (current_time - last_time > delay) {
-                            app_time = Calendar.getInstance().getTimeInMillis();
-                            ntp_time = getNtpTime();
-                            diff = ntp_time - app_time;
-                            System.out.println("TIME DIFF = " + diff);
-                            last_time = current_time;
-                        }
-                    }
-                }
-            }
-        };
-        clock_thread.start();
-        get_clock_thread.start();
-    }
-
-    public long getNtpTime() {
-
-        client = new NTPUDPClient();
-        long return_time;
-
-        try {
-            ntp_host = InetAddress.getByName("pool.ntp.org");
-            time = client.getTime(ntp_host, port);
-            return_time = time.getMessage().getTransmitTimeStamp().getTime();
-        } catch (IOException e) {
-            e.printStackTrace();
-            client.close();
-            return 0;
-        }
-        client.close();
-        return return_time;
-    }
-
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
+        // onCreateOption has to be boolean!
+        // returning super so nobody knows if its true or false.
+        // but it has to be here so option menu can exist
+        // dont hate the coder, hate java
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.main_menu, menu);
-        return true;
+        return super.onCreateOptionsMenu(menu);
     }
 
     @Override
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-
         // Try to open URL from options
         int id = item.getItemId();
         try {
@@ -161,30 +71,11 @@ public class MainActivity extends AppCompatActivity {
                 Intent browser_web = new Intent(Intent.ACTION_VIEW, Uri.parse("http://www.danieltahko.com/"));
                 startActivity(browser_web);
             }
-
         } catch (ActivityNotFoundException e) {
             // Toast out message if not able to open URL
             Toast.makeText(this, "Can't open URL, is this Nokia3310?", Toast.LENGTH_SHORT).show();
             e.printStackTrace();
         }
-
         return super.onOptionsItemSelected(item);
-    }
-
-    public boolean checkNetwork() {
-
-        boolean CONNECTION = false;
-
-        ConnectivityManager con_manager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo[] net_info = con_manager.getAllNetworkInfo();
-
-        for (NetworkInfo networkInfo : net_info) {
-            if ((networkInfo.getTypeName().equalsIgnoreCase("WIFI")) && (networkInfo.isConnected())) {
-                CONNECTION = true;
-            } else if ((networkInfo.getTypeName().equalsIgnoreCase("MOBILE")) && (networkInfo.isConnected())) {
-                CONNECTION = true;
-            }
-        }
-        return CONNECTION;
     }
 }
